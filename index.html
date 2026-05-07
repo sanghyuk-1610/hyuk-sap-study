@@ -16761,40 +16761,35 @@
       }
 
       function renderExpContent(expBox, q, data) {
-        const explanation = data.explanation || "";
-        const keyPoints   = data.keyPoints || [];
+        const summary   = data.summary || data.explanation || "";
+        const options   = data.options || [];
+        const keyPoints = data.keyPoints || [];
 
-        // 단락 분리 후 선택지 설명(A번~F번)과 일반 문단 구분
-        const paragraphs  = explanation.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-        const mainParas   = [];
-        const optionParas = [];
-        paragraphs.forEach(p => {
-          if (/^[A-F]번/.test(p)) optionParas.push(p);
-          else mainParas.push(p);
-        });
+        let expHtml = `<div class="exp-header">📖 AI 해설</div>`;
 
-        let expHtml = `<div class="exp-header">📖 AI 해설</div><div class="exp-body">`;
+        // 요약
+        if (summary) {
+          expHtml += `<div class="exp-body">`;
+          summary.split(/\n+/).filter(Boolean).forEach(line => {
+            expHtml += `<p class="exp-paragraph">${line}</p>`;
+          });
+          expHtml += `</div>`;
+        }
 
-        mainParas.forEach(p => {
-          expHtml += `<p class="exp-paragraph">${p.replace(/\n/g, "<br>")}</p>`;
-        });
-
-        if (optionParas.length > 0) {
+        // 선택지별 설명
+        if (options.length > 0) {
           expHtml += `<div class="exp-options">`;
-          optionParas.forEach(p => {
-            const letter    = p.match(/^([A-F])번/)[1];
-            const isCorrect = q.answers.includes(letter);
-            const text      = p.replace(/^[A-F]번[은는이가의]?\s*[:：\-]?\s*/, "");
+          options.forEach(opt => {
+            const isCorrect = opt.correct === true || q.answers.includes(opt.letter);
             expHtml += `<div class="exp-option ${isCorrect ? "exp-option-correct" : "exp-option-wrong"}">`;
-            expHtml += `<span class="exp-option-badge">${letter}</span>`;
-            expHtml += `<span class="exp-option-text">${text.replace(/\n/g, "<br>")}</span>`;
+            expHtml += `<span class="exp-option-badge">${opt.letter}</span>`;
+            expHtml += `<span class="exp-option-text">${(opt.explanation || "").replace(/\n/g, "<br>")}</span>`;
             expHtml += `</div>`;
           });
           expHtml += `</div>`;
         }
 
-        expHtml += `</div>`;
-
+        // 핵심 암기사항
         if (keyPoints.length > 0) {
           expHtml += `<div class="exp-keypoints">`;
           expHtml += `<div class="kp-header">💡 핵심 암기사항</div>`;
