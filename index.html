@@ -661,6 +661,34 @@
         padding: 10px 16px 14px;
         border-top: 1px solid var(--border);
       }
+      .kp-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .kp-item {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .kp-name {
+        flex-shrink: 0;
+        background: rgba(6, 182, 212, 0.08);
+        border: 1px solid rgba(6, 182, 212, 0.2);
+        color: var(--accent2);
+        font-size: 11px;
+        padding: 2px 9px;
+        border-radius: 20px;
+        font-family: "IBM Plex Mono", monospace;
+        white-space: nowrap;
+      }
+      .kp-desc {
+        font-size: 12px;
+        color: var(--text2);
+        line-height: 1.55;
+        word-break: keep-all;
+      }
       .kp-tags {
         display: flex;
         flex-wrap: wrap;
@@ -16793,9 +16821,24 @@
         if (keyPoints.length > 0) {
           expHtml += `<div class="exp-keypoints">`;
           expHtml += `<div class="kp-header">💡 핵심 암기사항</div>`;
-          expHtml += `<div class="kp-tags">`;
-          keyPoints.forEach(kp => { expHtml += `<span class="kp-tag">${kp}</span>`; });
-          expHtml += `</div></div>`;
+          const firstKp = keyPoints[0];
+          if (typeof firstKp === "object" && firstKp !== null && firstKp.name) {
+            // 새 형식: [{name, description}, ...]
+            expHtml += `<div class="kp-list">`;
+            keyPoints.forEach(kp => {
+              expHtml += `<div class="kp-item">`;
+              expHtml += `<span class="kp-name">${kp.name}</span>`;
+              if (kp.description) expHtml += `<span class="kp-desc">${kp.description}</span>`;
+              expHtml += `</div>`;
+            });
+            expHtml += `</div>`;
+          } else {
+            // 구 형식: ["문자열", ...] — 태그로 표시
+            expHtml += `<div class="kp-tags">`;
+            keyPoints.forEach(kp => { expHtml += `<span class="kp-tag">${kp}</span>`; });
+            expHtml += `</div>`;
+          }
+          expHtml += `</div>`;
         }
 
         expHtml += `<div class="exp-footer"><button class="btn-regen">🔄 해설 재생성</button></div>`;
@@ -16821,6 +16864,7 @@
 
         getAIExplanation(q, force)
           .then((data) => {
+            console.log(`[AI 해설 Q${q.num}]`, JSON.stringify(data));
             expCache[q.num] = data;
             renderExpContent(expBox, q, data);
           })
