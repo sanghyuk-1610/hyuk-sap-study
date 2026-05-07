@@ -593,6 +593,90 @@
         word-break: keep-all;
         white-space: pre-wrap;
       }
+      .exp-body {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .exp-paragraph {
+        font-size: 13px;
+        line-height: 1.75;
+        color: var(--text);
+        margin: 0;
+        word-break: keep-all;
+      }
+      .exp-options {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .exp-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 9px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+      }
+      .exp-option-correct {
+        background: rgba(16, 185, 129, 0.07);
+        border-color: rgba(16, 185, 129, 0.3);
+      }
+      .exp-option-wrong {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .exp-option-badge {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1px;
+      }
+      .exp-option-correct .exp-option-badge {
+        background: var(--correct);
+        color: #fff;
+      }
+      .exp-option-wrong .exp-option-badge {
+        background: var(--border);
+        color: var(--text3);
+      }
+      .exp-option-text {
+        font-size: 12px;
+        line-height: 1.65;
+        color: var(--text2);
+        word-break: keep-all;
+      }
+      .exp-option-correct .exp-option-text {
+        color: var(--text);
+      }
+      .exp-keypoints {
+        padding: 10px 16px 14px;
+        border-top: 1px solid var(--border);
+      }
+      .kp-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .kp-tag {
+        background: rgba(6, 182, 212, 0.08);
+        border: 1px solid rgba(6, 182, 212, 0.2);
+        color: var(--accent2);
+        font-size: 11px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-family: "IBM Plex Mono", monospace;
+        white-space: nowrap;
+      }
       .exp-loading {
         padding: 20px 16px;
         display: flex;
@@ -16677,15 +16761,48 @@
       }
 
       function renderExpContent(expBox, q, data) {
-        let expHtml = `<div class="exp-header">📖 AI 해설</div>`;
-        expHtml += `<div class="exp-content">${data.explanation || ""}</div>`;
-        if (data.keyPoints && data.keyPoints.length > 0) {
-          expHtml += `<div class="key-points"><div class="kp-header">💡 핵심 암기사항</div><ul>`;
-          data.keyPoints.forEach((p) => {
-            expHtml += `<li>${p}</li>`;
+        const explanation = data.explanation || "";
+        const keyPoints   = data.keyPoints || [];
+
+        // 단락 분리 후 선택지 설명(A번~F번)과 일반 문단 구분
+        const paragraphs  = explanation.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        const mainParas   = [];
+        const optionParas = [];
+        paragraphs.forEach(p => {
+          if (/^[A-F]번/.test(p)) optionParas.push(p);
+          else mainParas.push(p);
+        });
+
+        let expHtml = `<div class="exp-header">📖 AI 해설</div><div class="exp-body">`;
+
+        mainParas.forEach(p => {
+          expHtml += `<p class="exp-paragraph">${p.replace(/\n/g, "<br>")}</p>`;
+        });
+
+        if (optionParas.length > 0) {
+          expHtml += `<div class="exp-options">`;
+          optionParas.forEach(p => {
+            const letter    = p.match(/^([A-F])번/)[1];
+            const isCorrect = q.answers.includes(letter);
+            const text      = p.replace(/^[A-F]번[은는이가의]?\s*[:：\-]?\s*/, "");
+            expHtml += `<div class="exp-option ${isCorrect ? "exp-option-correct" : "exp-option-wrong"}">`;
+            expHtml += `<span class="exp-option-badge">${letter}</span>`;
+            expHtml += `<span class="exp-option-text">${text.replace(/\n/g, "<br>")}</span>`;
+            expHtml += `</div>`;
           });
-          expHtml += `</ul></div>`;
+          expHtml += `</div>`;
         }
+
+        expHtml += `</div>`;
+
+        if (keyPoints.length > 0) {
+          expHtml += `<div class="exp-keypoints">`;
+          expHtml += `<div class="kp-header">💡 핵심 암기사항</div>`;
+          expHtml += `<div class="kp-tags">`;
+          keyPoints.forEach(kp => { expHtml += `<span class="kp-tag">${kp}</span>`; });
+          expHtml += `</div></div>`;
+        }
+
         expHtml += `<div class="exp-footer"><button class="btn-regen">🔄 해설 재생성</button></div>`;
         expBox.innerHTML = expHtml;
         expBox.querySelector(".btn-regen").onclick = function () {
