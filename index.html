@@ -1091,6 +1091,10 @@
         border-color: var(--accent);
         color: var(--accent);
       }
+      .wrong-reset-btn:hover {
+        border-color: var(--wrong) !important;
+        color: var(--wrong) !important;
+      }
       .psb-prog {
         padding: 10px 14px;
         border-bottom: 1px solid var(--border);
@@ -1488,6 +1492,14 @@
             </div>
             <button class="shuffle-btn" onclick="shufflePractice()">
               ⟳ 순서 섞기
+            </button>
+            <button
+              class="shuffle-btn wrong-reset-btn"
+              id="wrong-reset-btn"
+              style="display: none"
+              onclick="confirmWrongReset()"
+            >
+              🗑 오답 다시 풀기 (초기화)
             </button>
           </div>
           <div class="psb-prog">
@@ -16663,7 +16675,23 @@
       const expCache = {};
 
       function defSt() {
-        return { ps: {}, bm: {}, hist: [] };
+        return { ps: {}, bm: {}, hist: [], wr: {} };
+      }
+
+      // 오답노트 전용 상태 접근자.
+      // 오답노트에서 "다시 풀기"를 시작한 문제(st.wr에 항목이 있는 문제)는
+      // st.wr의 기록을 읽고 쓰며, 원본 풀이 기록(st.ps)은 건드리지 않는다.
+      // 그 외(전체 문제/북마크)에서는 기존처럼 st.ps를 사용한다.
+      function getPs(num) {
+        if (pFilter === "wrong" && st.wr && st.wr[num] !== undefined)
+          return st.wr[num];
+        return st.ps[num];
+      }
+      function putPs(num) {
+        if (pFilter === "wrong" && st.wr && st.wr[num] !== undefined)
+          return st.wr[num];
+        if (!st.ps[num]) st.ps[num] = {};
+        return st.ps[num];
       }
 
       function setSyncStatus(state, msg) {
@@ -16698,6 +16726,7 @@
           const remoteCount = Object.keys(remote.ps || {}).length;
           const localCount = Object.keys(local.ps || {}).length;
           st = remoteCount >= localCount ? remote : local;
+          if (!st.wr) st.wr = {};
           localStorage.setItem("sapc02v2", JSON.stringify(st));
           setSyncStatus("ok", "● 구글 시트 동기화됨");
         } catch (e) {
@@ -16705,6 +16734,7 @@
             const d = localStorage.getItem("sapc02v2");
             if (d) st = JSON.parse(d);
           } catch (_) {}
+          if (!st.wr) st.wr = {};
           setSyncStatus("err", "● 로컬 저장됨 (오프라인)");
         }
         updateHome();
@@ -16750,7 +16780,7 @@
         for (const [num, ps] of Object.entries(st.ps || {})) {
           if (ps && ps.note) keptPs[num] = { note: ps.note };
         }
-        st = { ps: keptPs, bm: st.bm || {}, hist: [] };
+        st = { ps: keptPs, bm: st.bm || {}, hist: [], wr: {} };
         try {
           localStorage.setItem("sapc02v2", JSON.stringify(st));
         } catch (e) {}
@@ -16770,6 +16800,33 @@
         pTemp = {};
         pIdx = 0;
         setFilter("all");
+      }
+
+      // ── 오답노트 전용 초기화 ──
+      // 오답노트에 모인 문제들만 "미풀이" 상태로 되돌려 다시 풀 수 있게 한다.
+      // 원본 풀이 기록(st.ps)은 그대로 두므로 전체 문제/통계/오답 목록은 유지된다.
+      function confirmWrongReset() {
+        document.getElementById("modal-title").textContent =
+          "오답 다시 풀기";
+        document.getElementById("modal-body").textContent =
+          "오답노트의 문제들을 다시 풀 수 있도록 초기화합니다. 전체 문제 풀기의 기록과 통계는 그대로 유지됩니다. 계속하시겠습니까?";
+        document.getElementById("modal-ok").onclick = () => {
+          closeModal();
+          resetWrongOnly();
+        };
+        document.getElementById("modal-ov").classList.add("open");
+      }
+
+      function resetWrongOnly() {
+        if (!st.wr) st.wr = {};
+        pList.forEach((q) => {
+          st.wr[q.num] = {};
+        });
+        save();
+        pTemp = {};
+        pIdx = 0;
+        buildPGrid();
+        renderPQ();
       }
 
       // ── AI 해설 (AWS Bedrock) ──
@@ -17211,6 +17268,8 @@
           pList = ALL_Q.filter((q) => bn.includes(q.num));
           setText("practice-title", "북마크");
         }
+        const wrBtn = document.getElementById("wrong-reset-btn");
+        if (wrBtn) wrBtn.style.display = f === "wrong" ? "block" : "none";
         pIdx = 0;
         pTemp = {};
         buildPGrid();
@@ -17251,11 +17310,11 @@
           if (!b) return;
           b.className = "q-dot";
           if (i === pIdx) b.classList.add("active");
-          const ps = st.ps[q.num];
+          const ps = getPs(q.num);
           if (ps?.answered) b.classList.add(ps.correct ? "correct" : "wrong");
           if (st.bm[q.num]) b.classList.add("bm");
         });
-        const done = pList.filter((q) => st.ps[q.num]?.answered).length;
+        const done = pList.filter((q) => getPs(q.num)?.answered).length;
         setText("pp-done", done);
         const pf = document.getElementById("pp-fill");
         if (pf)
@@ -17272,10 +17331,12 @@
           return;
         }
         const q = pList[pIdx];
-        const ps = st.ps[q.num] || {};
+        const ps = getPs(q.num) || {};
         const isAnswered = !!ps.answered;
         const sel = isAnswered ? ps.selected || [] : pTemp[q.num] || [];
         const isBm = !!st.bm[q.num];
+        // 메모는 항상 원본 기록(st.ps)에 저장/표시
+        const noteVal = (st.ps[q.num] || {}).note || "";
 
         const card = mkCard(
           q,
@@ -17285,7 +17346,7 @@
           sel,
           isAnswered,
           isAnswered ? ps.correct : null,
-          ps.note || "",
+          noteVal,
           (letter) => {
             if (isAnswered) return;
             if (!pTemp[q.num]) pTemp[q.num] = [];
@@ -17303,10 +17364,10 @@
                 hasAns &&
                 [...[letter]].sort().join(",") ===
                   [...q.answers].sort().join(",");
-              if (!st.ps[q.num]) st.ps[q.num] = {};
-              st.ps[q.num].answered = true;
-              st.ps[q.num].correct = isOk;
-              st.ps[q.num].selected = [letter];
+              const tgt = putPs(q.num);
+              tgt.answered = true;
+              tgt.correct = isOk;
+              tgt.selected = [letter];
               save();
               renderPQ();
             }
@@ -17354,10 +17415,10 @@
               const isOk =
                 hasAns &&
                 [...s2].sort().join(",") === [...q.answers].sort().join(",");
-              if (!st.ps[q.num]) st.ps[q.num] = {};
-              st.ps[q.num].answered = true;
-              st.ps[q.num].correct = isOk;
-              st.ps[q.num].selected = s2;
+              const tgt = putPs(q.num);
+              tgt.answered = true;
+              tgt.correct = isOk;
+              tgt.selected = s2;
               save();
               renderPQ();
             }),
@@ -17379,7 +17440,7 @@
         }
 
         // 노트 버튼
-        const existNote = ps.note || "";
+        const existNote = noteVal;
         const noteBtn = document.createElement("button");
         noteBtn.className = "btn btn-note" + (existNote ? " on" : "");
         noteBtn.textContent = existNote ? "📝 메모 있음" : "📝 메모";
