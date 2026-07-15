@@ -224,6 +224,15 @@
         background: rgba(239, 68, 68, 0.08);
         border-color: var(--wrong);
       }
+      .note-reset-btn {
+        margin-top: 8px;
+        border-color: rgba(245, 158, 11, 0.35);
+        color: #f59e0b;
+      }
+      .note-reset-btn:hover {
+        background: rgba(245, 158, 11, 0.08);
+        border-color: #f59e0b;
+      }
       .sync-status {
         font-size: 11px;
         color: var(--text3);
@@ -1388,6 +1397,9 @@
           <div class="sync-status" id="sync-status">● 로컬 저장됨</div>
           <button class="reset-btn" onclick="confirmReset()">
             🗑 전체 기록 초기화
+          </button>
+          <button class="reset-btn note-reset-btn" onclick="confirmNoteReset()">
+            📝 메모 전체 초기화
           </button>
         </div>
       </div>
@@ -16805,6 +16817,33 @@
         pTemp = {};
         pIdx = 0;
         setFilter("all");
+      }
+
+      // ── 메모 전용 초기화 ──
+      // 모든 문제의 메모만 삭제한다. 풀이 기록/북마크/시험 이력/오답 재도전
+      // 기록은 건드리지 않으므로 오답노트·전체 문제·통계는 그대로 유지된다.
+      function confirmNoteReset() {
+        document.getElementById("modal-title").textContent = "메모 전체 초기화";
+        document.getElementById("modal-body").textContent =
+          "모든 문제의 메모가 삭제됩니다. 풀이 기록, 북마크, 시험 이력은 그대로 유지됩니다. 계속하시겠습니까?";
+        document.getElementById("modal-ok").onclick = () => {
+          closeModal();
+          resetNotesOnly();
+        };
+        document.getElementById("modal-ov").classList.add("open");
+      }
+
+      function resetNotesOnly() {
+        for (const [num, ps] of Object.entries(st.ps || {})) {
+          if (!ps || ps.note === undefined) continue;
+          delete ps.note;
+          // 메모만 있던 항목은 통째로 제거
+          if (!Object.keys(ps).length) delete st.ps[num];
+        }
+        save();
+        // 열려 있는 화면 갱신 (문제 카드의 메모 영역, 북마크 목록)
+        renderPQ();
+        renderBM();
       }
 
       // ── 오답노트 전용 초기화 ──
